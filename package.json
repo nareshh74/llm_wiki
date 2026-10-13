@@ -52,7 +52,6 @@
     "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
-    "shadcn": "^4.1.2",
     "sigma": "^3.0.2",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.2",
@@ -60,6 +59,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "shadcn": "^4.1.2",
     "@tauri-apps/cli": "^2.11.1",
     "@types/node": "^25.5.2",
     "@types/react": "^19.0.0",

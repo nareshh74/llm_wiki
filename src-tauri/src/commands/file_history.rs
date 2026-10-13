@@ -111,6 +111,10 @@ fn project_root_for(path: &Path) -> Option<PathBuf> {
 
 fn history_path(root: &Path, path: &Path) -> PathBuf {
     let relative = path.strip_prefix(root).unwrap_or(path).to_string_lossy();
+    // canonicalize() returns native separators on Windows. Match that existing
+    // read-side address when a writer supplies slash-separated paths.
+    #[cfg(windows)]
+    let relative = relative.replace('/', "\\");
     // Fixed FNV-1a keeps history addresses stable across Rust/toolchain upgrades.
     let mut hash = 0xcbf29ce484222325_u64;
     for byte in relative.as_bytes() {
@@ -485,6 +489,15 @@ mod tests {
             serde_json::to_string(&settings).unwrap(),
         )
         .unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn slash_and_native_paths_share_existing_history_address() {
+        let root = std::env::temp_dir().join("llm-wiki-history-address-test");
+        let slash_path = root.join("wiki/page.md");
+        let native_path = root.join("wiki").join("page.md");
+        assert_eq!(history_path(&root, &slash_path), history_path(&root, &native_path));
     }
 
     #[test]
