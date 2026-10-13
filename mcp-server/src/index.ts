@@ -25,7 +25,7 @@ const MAX_TEXT_BYTES = 120_000
 const MAX_WRITE_PAGE_BYTES = 2 * 1024 * 1024
 
 const client = new LlmWikiApiClient()
-const projectBinding = new McpProjectBinding()
+const projectBinding = new McpProjectBinding(process.env.LLM_WIKI_FIXED_PROJECT)
 
 const server = new Server(
   { name: "llm-wiki", version: VERSION },
@@ -211,13 +211,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "llm_wiki_status": {
         const [health, projects] = await Promise.all([
           client.health(),
-          client.projects().catch(() => ({ projects: [], currentProject: null })),
+          scopedProjects().catch(() => ({ projects: [], currentProject: null })),
         ])
         return textResult(JSON.stringify({ ...health, ...projects, sessionProject: projectBinding.project }, null, 2))
       }
       case "llm_wiki_projects": {
         await assertMcpEnabled()
-        return textResult(JSON.stringify({ ...(await client.projects()), sessionProject: projectBinding.project }, null, 2))
+        return textResult(JSON.stringify({ ...(await scopedProjects()), sessionProject: projectBinding.project }, null, 2))
       }
       case "llm_wiki_set_project": {
         await assertMcpEnabled()
@@ -359,7 +359,15 @@ function asObject(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
+async function scopedProjects(): Promise<{ projects: ApiProject[]; currentProject: ApiProject | null }> {
+  const data = await client.projects()
+  if (projectBinding.fixedSelector === undefined) return data
+  const fixed = projectBinding.pin(projectBinding.fixedSelector, data.projects, data.currentProject)
+  return { projects: [fixed], currentProject: data.currentProject?.id === fixed.id ? fixed : null }
+}
+
 async function resolveProjectScope(args: Record<string, unknown>): Promise<{ id: string; project: ApiProject | null }> {
+  if (projectBinding.fixedSelector !== undefined && !projectBinding.project) await scopedProjects()
   let id: string
   try {
     id = projectBinding.resolve(optionalStringArg(args.project_id) ?? undefined)
