@@ -18,6 +18,7 @@ import {
   type ApiProject,
 } from "./api-client.js"
 import { VERSION } from "./version.js"
+import { withSpan } from "./otel-lite.js"
 import { McpProjectBinding, withActiveProject } from "./project-binding.js"
 
 const DEFAULT_PROJECT_ID = "current"
@@ -204,7 +205,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   ],
 }))
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+server.setRequestHandler(CallToolRequestSchema, (request) =>
+  withSpan(`mcp.tool ${request.params.name}`, 2, { "mcp.tool.name": request.params.name }, () => handleCallTool(request)),
+)
+
+async function handleCallTool(request: { params: { name: string; arguments?: unknown } }) {
   const args = asObject(request.params.arguments ?? {})
   try {
     switch (request.params.name) {
@@ -336,7 +341,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       scopedErrorMessage(err),
     )
   }
-})
+}
 
 async function assertMcpEnabled(): Promise<void> {
   const health = await client.health()
