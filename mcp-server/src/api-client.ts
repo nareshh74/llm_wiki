@@ -1,3 +1,5 @@
+import { currentTraceparent, withSpan } from "./otel-lite.js"
+
 export const DEFAULT_API_BASE_URL = "http://127.0.0.1:19828"
 
 export interface LlmWikiApiClientOptions {
@@ -392,11 +394,18 @@ export class LlmWikiApiClient {
     if (options.body !== undefined) headers["Content-Type"] = "application/json"
 
     let response: Response
+    const method = options.method ?? (options.body === undefined ? "GET" : "POST")
     try {
-      response = await this.fetchImpl(url, {
-        method: options.method ?? (options.body === undefined ? "GET" : "POST"),
-        headers,
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      response = await withSpan(`${method} ${apiPath(path)}`, 3, { "http.request.method": method, "url.path": apiPath(path) }, async (rec) => {
+        const tp = currentTraceparent()
+        if (tp) headers.traceparent = tp
+        const res = await this.fetchImpl(url, {
+          method,
+          headers,
+          body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        })
+        rec["http.response.status_code"] = res.status
+        return res
       })
     } catch (err) {
       throw new Error(`LLM Wiki API request failed. Is the desktop app running? ${err instanceof Error ? err.message : String(err)}`)
